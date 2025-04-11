@@ -38,7 +38,11 @@ class IEKF:
 
         R_new = R @ expm(w_skew * dt)
         v_new = v + (R @ acceleration_np + gravity) * dt
+<<<<<<< HEAD
         p_new = p + v * dt + 0.5 * (R @ acceleration_np + gravity) * dt ** 2
+=======
+        p_new = p + v * dt * 0.5 * (R @ acceleration_np + gravity) * dt ** 2
+>>>>>>> 8f24b2d2d8c80a7b300194ea28327ac8419ccd34
 
 
 
