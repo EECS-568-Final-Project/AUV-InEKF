@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 from typing import NamedTuple
@@ -43,3 +44,17 @@ class Vec3(NamedTuple):
 
     def as_matrix(self) -> FloatMat:
         return np.array([self.x, self.y, self.z])
+    
+@dataclass
+class SensorData:
+    time: float
+    dvl: Vec3
+    lin_acc: Vec3
+    ang_vel: Vec3
+    depth: float
+
+    def floatify(self):
+        self.dvl = Vec3(*map(float, self.dvl))
+        self.lin_acc = Vec3(*map(float, self.lin_acc))
+        self.ang_vel = Vec3(*map(float, self.ang_vel))
+        self.depth = float(self.depth)
