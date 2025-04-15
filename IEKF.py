@@ -76,7 +76,7 @@ class IEKF:
 
         pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.inverse_state), np.eye(6))
 
-        measurement = np.array([self.state[0, 4], self.state[1, 4], depth, 0, 1])
+        measurement = np.array([self.position[0], self.position[1], depth, 0, 1])
 
         # Make innovation vector
         V = (self.inverse_state @ measurement)[:3]
@@ -102,33 +102,28 @@ class IEKF:
     def update_dvl(self, z: Vec3):
         dvl_rotation_body = np.eye(3)
         dvl_position_body = np.zeros((3, 1))
-        z = dvl_rotation_body @ z.as_matrix() + dvl_position_body @ (self.last_controlInput['linear_acceleration'] - self.bias[0])
+        measurement = dvl_rotation_body @ z.as_matrix() + dvl_position_body @ (self.last_controlInput['linear_acceleration'] - self.bias[0])
 
         zeros = np.zeros((3,3))
-        I = np.eye(3)
-        H = np.block([zeros, zeros, I, zeros, zeros])
+        measurement_jacobian = np.block([zeros, zeros, np.eye(3), zeros, zeros])
 
-        I = np.eye(6)
-        zeros = np.zeros((9, 6))
+        pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.state), np.eye(6))
 
-        H = H @ np.block([[self._adjoint(self.state), zeros],
-                          [                    zeros.T,     I]])
-        
-        z = np.array([z[0], z, z.z, -1, 0])
+        full_measurement = np.array([measurement[0], measurement[1], measurement[2], -1, 0])
 
         # Make innovation vector
-        V = (self.state @ z)[:3]
+        V = (self.state @ full_measurement)[:3]
         
-        meas_cov = inv(H @ self.covariance @ H.T + self.rotation @ self.dvl_measurement_noise @ self.rotation.T) 
+        meas_cov = inv(pred_measurement @ self.covariance @ pred_measurement.T + self.rotation @ self.dvl_measurement_noise @ self.rotation.T) 
 
-        kalman_gain = self.covariance @ H.T @ meas_cov
+        kalman_gain = self.covariance @ pred_measurement.T @ meas_cov
         state_gain = kalman_gain[:9]
         bias_gain = kalman_gain[9:]
 
         self.state[-1] = expm(self._wedge(state_gain @ V)) @ self.state
         self.bias[-1] = self.bias + (bias_gain @ V)
 
-        self.covariance[-1] = (np.eye(15) - kalman_gain @ H) @ self.covariance
+        self.covariance[-1] = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
 
         return self.state, self.covariance
     
@@ -179,6 +174,10 @@ class IEKF:
         timestamps = [sensor_data[0].timestamp]
         last_timestamp = sensor_data[0].timestamp
 
+
+        # TODO: sensor_data is expected to be a list of SensorData
+        # data.depth is a float
+        # data.dvl is Vec3 transformed to matrix in the function
         for data in sensor_data[1:]:
             dt = data.timestamp - last_timestamp
             last_timestamp = data.timestamp
