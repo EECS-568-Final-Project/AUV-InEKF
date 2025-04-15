@@ -1,26 +1,32 @@
 import numpy as np
-from scipy.linalg import expm, logm
+from scipy.linalg import expm, logm, block_diag
+from numpy.linalg import inv
 from common import *
 
 
 class IEKF:
     def __init__(self, initial_state, initial_covariance, process_noise, measurement_noise):
-        self.X = initial_state
-        self.P = initial_covariance
+        self.state = initial_state
+        self.covariance = initial_covariance
 
-        self.Q = process_noise
-        self.R_depth = measurement_noise['depth']
-        self.R_dvl = measurement_noise['dvl']
-        self.R_ahrs = measurement_noise['ahrs']
+        self.process_noise = process_noise
+        self.depth_measurement_noise = measurement_noise['depth']
+        self.dvl_measurement_noise = measurement_noise['dvl']
+        self.ahrs_noise = measurement_noise['ahrs']
+
+        # Dict, {'linear_acceleration': Vec3, 'angular_velocity': Vec3}
+        self.last_controlInput = None 
 
         self.bias = np.zeros(3)
 
-    def predict(self, control_input, dt):
-        acceleration = control_input['linear_acceleration']
-        gyroscope = control_input['angular_velocity']
+    def predict(self, control_input, dt: float):
+        self.last_controlInput = control_input
 
-        acceleration_np = np.array([acceleration.x, acceleration.y, acceleration.z])
-        gyroscope_np = np.array([gyroscope.x, gyroscope.y, gyroscope.z])
+        acceleration_vec = control_input['linear_acceleration']
+        gyroscope_vec = control_input['angular_velocity']
+
+        acceleration_np = np.array([acceleration_vec.x, acceleration_vec.y, acceleration_vec.z])
+        gyroscope_np = np.array([gyroscope_vec.x, gyroscope_vec.y, gyroscope_vec.z])
 
         gravity = np.array([0, 0, -9.81])
 
@@ -28,57 +34,104 @@ class IEKF:
         I = np.eye(3)
         g_cross = self._skew(gravity)
 
-
-
-        R = self.X[:3, :3]
-        v = self.X[:3, 3]
-        p = self.X[:3, 4]
-
         w_skew = self._skew(gyroscope_np)
 
-        R_new = R @ expm(w_skew * dt)
-        v_new = v + (R @ acceleration_np + gravity) * dt
-        p_new = p + v * dt + 0.5 * (R @ acceleration_np + gravity) * dt ** 2
+        pred_rotation = self.rotation @ expm(w_skew * dt)
+        pred_velocity = self.velocity + (self.rotation @ acceleration_np + gravity) * dt
+        pred_position = self.position + self.velocity * dt + 0.5 * (self.rotation @ acceleration_np + gravity) * (dt ** 2)
 
 
+        new_state = np.zeros((5, 5))
+        new_state[:3, :3] = pred_rotation
+        new_state[:3, 3] = pred_velocity
+        new_state[:3, 4] = pred_position
+        new_state[3, 3] = 1
+        new_state[4, 4] = 1
 
-        X_new = np.zeros((5, 5))
-        X_new[:3, :3] = R_new
-        X_new[:3, 3] = v_new
-        X_new[:3, 4] = p_new
-        X_new[3, 3] = 1
-        X_new[4, 4] = 1
+        adjoint = block_diag(self._adjoint(new_state), np.eye(6))
 
-        adj_X = np.block([
-            [self._adjoint(X_new), np.zeros((9, 6))],
-            [np.zeros((6, 9)), np.eye(6)]
+        error_dyanmics = np.block([
+            [zeros,     zeros,     zeros,    -pred_rotation,          zeros],
+            [g_cross,  zeros,     zeros,  -adjoint[3:6,0:3], -pred_rotation],
+            [zeros,     I,        zeros,  -adjoint[6:9,0:3],          zeros],
+            [zeros,     zeros,     zeros,          zeros,             zeros],
+            [zeros,     zeros,     zeros,          zeros,             zeros],
         ])
 
+        error_update = expm(error_dyanmics * dt)
+
+        self.covariance = error_update @ (self.covariance + adjoint @ self.process_noise @ adjoint.T * dt) @ error_update.T
+
+        self.state = new_state
+
+        return self.state
+
+
+    def update_depth(self, depth: float):
+        zero = np.zeros((3, 3))
+        measurement_jacobian = np.block([zero, zero, np.eye(3), zero, zero])
+
+        I = np.eye(6)
+        zero = np.zeros((9, 6))
+
+        pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.inverse_state), np.eye(6))
+
+        measurement = np.array([self.state[0, 4], self.state[1, 4], depth, 0, 1])
+
+        # Make innovation vector
+        V = (self.inverse_state @ measurement)[:3]
+
+        # TODO: Figure out what is self.sys.invR from paper code
+        # inverseNoise = np.zeros((3,3))
+        # inverseNoise[-1, -1] = 1 / self.depth_measurement_noise
         
+        pred_meas_cov = inv(pred_measurement @ self.covariance @ pred_measurement.T)
+        meas_cov_inv = pred_meas_cov - pred_meas_cov @ (self.rotation.T @ self.depth_measurement_noise @ self.rotation + pred_meas_cov) @ pred_meas_cov
 
-        A = np.block([
-            [zeros,     zeros,     zeros,         -R_new,     zeros],
-            [g_cross,  zeros,     zeros,  -adj_X[3:6,0:3],  -R_new],
-            [zeros,     I,        zeros,  -adj_X[6:9,0:3],   zeros],
-            [zeros,     zeros,     zeros,          zeros,      zeros],
-            [zeros,     zeros,     zeros,          zeros,      zeros]
-        ])
+        # Kalman gain
+        kalman_gain = self.covariance @ pred_measurement.T @ meas_cov_inv
+        state_gain = kalman_gain[:9]
+        bias_gain = kalman_gain[9:]
 
-        Phi = expm(A * dt)
+        self.state = expm(self._wedge(state_gain @ V)) @ self.state
+        self.bias = self.bias + (bias_gain @ V)
 
-        self.P = Phi @ (self.P + adj_X @ self.Q @ adj_X.T * dt) @ Phi.T
+        self.covariance = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
+        return self.state, self.covariance
 
-        self.X = X_new
+    def update_dvl(self, z: Vec3):
+        dvl_rotation_body = np.eye(3)
+        dvl_position_body = np.zeros((3, 1))
+        z = dvl_rotation_body @ z.as_matrix() + dvl_position_body @ (self.last_controlInput['linear_acceleration'] - self.bias[0])
 
-        return self.X
+        zeros = np.zeros((3,3))
+        I = np.eye(3)
+        H = np.block([zeros, zeros, I, zeros, zeros])
 
+        I = np.eye(6)
+        zeros = np.zeros((9, 6))
 
-    def update_depth(self, z):
-        pass
+        H = H @ np.block([[self._adjoint(self.state), zeros],
+                          [                    zeros.T,     I]])
+        
+        z = np.array([z[0], z, z.z, -1, 0])
 
-    def update_dvl(self, z):
-        pass
+        # Make innovation vector
+        V = (self.state @ z)[:3]
+        
+        meas_cov = inv(H @ self.covariance @ H.T + self.rotation @ self.dvl_measurement_noise @ self.rotation.T) 
 
+        kalman_gain = self.covariance @ H.T @ meas_cov
+        state_gain = kalman_gain[:9]
+        bias_gain = kalman_gain[9:]
+
+        self.state[-1] = expm(self._wedge(state_gain @ V)) @ self.state
+        self.bias[-1] = self.bias + (bias_gain @ V)
+
+        self.covariance[-1] = (np.eye(15) - kalman_gain @ H) @ self.covariance
+
+        return self.state, self.covariance
+    
     def update_ahrs(self, z):
         pass
 
@@ -88,22 +141,40 @@ class IEKF:
             [v[2], 0, -v[0]],
             [-v[1], v[0], 0]
         ])
-    def _adjoint(self, X):
-        R = X[:3, :3]
-        p = X[:3, 4]
+        
+    def _adjoint(self, state):
+        rotation = state[:3, :3]
+        velocity = state[:3, 3]
+        position = state[:3, 4]
 
         adj = np.zeros((9, 9))
 
-        adj[:3, :3] = R
-        adj[3:6, 3:6] = R
-        adj[6:9, 6:9] = R
+        adj[:3, :3] = rotation
+        adj[3:6, 3:6] = rotation
+        adj[6:9, 6:9] = rotation
 
-        adj[3:6, :3] = self._skew(p) @ R
+        adj[3:6, :3] = self._skew(velocity) @ rotation
+        adj[6:9, :3] = self._skew(position) @ rotation
 
         return adj
 
+
+    def _wedge(self, x):
+        so_3 = self._vee(x[0:3])
+        vel = x[3:6].reshape(-1, 1)
+        pos = x[6:9].reshapee(-1,1)
+        
+        return np.block([so_3, vel, pos],
+                        [np.zeros((2,5))])
+
+
+    def _vee(self, x):
+        return np.array([[0, -x[2], x[1]],
+                         [x[2], 0, -x[0]],
+                         [-x[1], x[0], 0]])
+
     def run_filter(self, sensor_data):
-        predicted_states = [self.X]
+        predicted_states = [self.state]
         
         timestamps = [sensor_data[0].timestamp]
         last_timestamp = sensor_data[0].timestamp
@@ -128,10 +199,29 @@ class IEKF:
                 self.update_ahrs(data.ahrs)
 
 
-            predicted_states.append(self.X.copy())
+            predicted_states.append(self.state.copy())
             timestamps.append(data.time)
 
         return predicted_states, timestamps
 
 
+    @property
+    def rotation(self):
+        return self.state[:3, :3]
+    
+    @property
+    def velocity(self):
+        return self.state[:3, 3]
 
+    @property
+    def position(self):
+        return self.state[:3, 4]
+    
+    @property
+    def inverse_state(self):
+        rotation_transpose = self.rotation.T
+        return np.block([
+            [rotation_transpose, -rotation_transpose @ self.velocity, -rotation_transpose @ self.position],
+            [np.zeros((1, 3)), 1, 0],
+            [np.zeros((1, 3)), 0, 1],
+        ])
