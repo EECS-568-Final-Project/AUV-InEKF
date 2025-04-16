@@ -13,10 +13,11 @@ def read_csv_data(csvFilePath, dataSource="IMU"):
             for row in reader:
                 sensor_data = SensorData(
                     time=float(row['Time']),
+                    imu_dt=None,
                     dvl=None,
                     lin_acc=None,
                     ang_vel=None,
-                    depth=None
+                    depth=None,
                 )
                 
                 if dataSource == "IMU":
@@ -34,6 +35,7 @@ def read_csv_data(csvFilePath, dataSource="IMU"):
 
                     sensor_data.lin_acc = linear_acceleration
                     sensor_data.ang_vel = angular_velocity
+                    sensor_data.imu_dt = float(row['dt'])
 
                 elif dataSource == "DVL":
                     velocity = Vec3(
@@ -89,7 +91,7 @@ def process_sensor_data(type="stationary"):
         results.append(sensor_data)
     
     results = aggregate_results(results)
-    pprint(results)
+    return results
 
 def main():
     process_sensor_data("stationary")

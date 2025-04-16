@@ -12,12 +12,12 @@ class IEKF:
         self.process_noise = process_noise
         self.depth_measurement_noise = measurement_noise['depth']
         self.dvl_measurement_noise = measurement_noise['dvl']
-        self.ahrs_noise = measurement_noise['ahrs']
+        # self.ahrs_noise = measurement_noise['ahrs']
 
         # Dict, {'linear_acceleration': Vec3, 'angular_velocity': Vec3}
         self.last_controlInput = None 
 
-        self.bias = np.zeros(3)
+        self.bias = np.zeros((2, 3))
 
     def predict(self, control_input, dt: float):
         self.last_controlInput = control_input
@@ -94,15 +94,15 @@ class IEKF:
         bias_gain = kalman_gain[9:]
 
         self.state = expm(self._wedge(state_gain @ V)) @ self.state
-        self.bias = self.bias + (bias_gain @ V)
+        self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
 
         self.covariance = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
         return self.state, self.covariance
 
     def update_dvl(self, z: Vec3):
         dvl_rotation_body = np.eye(3)
-        dvl_position_body = np.zeros((3, 1))
-        measurement = dvl_rotation_body @ z.as_matrix() + dvl_position_body @ (self.last_controlInput['linear_acceleration'] - self.bias[0])
+        dvl_position_body = np.zeros((3,))
+        measurement = dvl_rotation_body @ z.as_matrix() + self._skew(dvl_position_body) @ self.last_controlInput['linear_acceleration'].as_matrix() - self.bias[0]
 
         zeros = np.zeros((3,3))
         measurement_jacobian = np.block([zeros, zeros, np.eye(3), zeros, zeros])
@@ -120,10 +120,10 @@ class IEKF:
         state_gain = kalman_gain[:9]
         bias_gain = kalman_gain[9:]
 
-        self.state[-1] = expm(self._wedge(state_gain @ V)) @ self.state
-        self.bias[-1] = self.bias + (bias_gain @ V)
+        self.state = expm(self._wedge(state_gain @ V)) @ self.state
+        self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
 
-        self.covariance[-1] = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
+        self.covariance = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
 
         return self.state, self.covariance
     
@@ -169,16 +169,16 @@ class IEKF:
     def run_filter(self, sensor_data):
         predicted_states = [self.state]
         
-        timestamps = [sensor_data[0].timestamp]
-        last_timestamp = sensor_data[0].timestamp
+        timestamps = [sensor_data[0].time]
+        last_timestamp = sensor_data[0].time
 
 
         # TODO: sensor_data is expected to be a list of SensorData
         # data.depth is a float
         # data.dvl is Vec3 transformed to matrix in the function
         for data in sensor_data[1:]:
-            dt = data.timestamp - last_timestamp
-            last_timestamp = data.timestamp
+            dt = data.time - last_timestamp
+            last_timestamp = data.time
 
             # Predict
             control = {
@@ -217,8 +217,9 @@ class IEKF:
     @property
     def inverse_state(self):
         rotation_transpose = self.rotation.T
+        # breakpoint()
         return np.block([
-            [rotation_transpose, -rotation_transpose @ self.velocity, -rotation_transpose @ self.position],
+            [rotation_transpose, (-rotation_transpose @ self.velocity).reshape(3, 1), (-rotation_transpose @ self.position).reshape(3, 1)],
             [np.zeros((1, 3)), 1, 0],
             [np.zeros((1, 3)), 0, 1],
         ])

@@ -48,12 +48,14 @@ class Vec3(NamedTuple):
 @dataclass
 class SensorData:
     time: float
+    imu_dt: float
     dvl: Vec3
     lin_acc: Vec3
     ang_vel: Vec3
     depth: float
 
     def floatify(self):
+        self.imu_dt = float(self.imu_dt)
         self.dvl = Vec3(*map(float, self.dvl))
         self.lin_acc = Vec3(*map(float, self.lin_acc))
         self.ang_vel = Vec3(*map(float, self.ang_vel))
