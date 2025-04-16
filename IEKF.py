@@ -155,18 +155,16 @@ class IEKF:
 
 
     def _wedge(self, x):
-        so_3 = self._vee(x[0:3])
+        so_3 = self._skew(x[0:3])
         vel = x[3:6].reshape(-1, 1)
-        pos = x[6:9].reshapee(-1,1)
+        pos = x[6:9].reshape(-1,1)
         
-        return np.block([so_3, vel, pos],
-                        [np.zeros((2,5))])
+        return np.block([[so_3, vel, pos],
+                        [np.zeros((2,5))]])
 
 
     def _vee(self, x):
-        return np.array([[0, -x[2], x[1]],
-                         [x[2], 0, -x[0]],
-                         [-x[1], x[0], 0]])
+        return np.array([x[2, 1], x[0, 2], x[1, 0]])
 
     def run_filter(self, sensor_data):
         predicted_states = [self.state]
