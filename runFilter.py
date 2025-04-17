@@ -3,7 +3,9 @@ import numpy as np
 from common import *
 import readData
 from IEKF import IEKF
+
 from pprint import pprint
+from tqdm import tqdm
 
 from plotData import plotRobotData
 
@@ -11,7 +13,7 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
     predictedStates = [iekf.state.copy()]
     timestamps = [sensor_data_list[0].time]
 
-    for sensor_data in sensor_data_list[1:]:
+    for sensor_data in tqdm(sensor_data_list[1:]):
         if sensor_data.lin_acc is not None:
             control = {
                 'linear_acceleration': sensor_data.lin_acc,
@@ -22,8 +24,8 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
             iekf.update_depth(sensor_data.depth)
         if sensor_data.dvl is not None:
             iekf.update_dvl(sensor_data.dvl)
-        if sensor_data.mag is not None:
-            iekf.update_ahrs(sensor_data.mag)
+        # if sensor_data.mag is not None:
+        #     iekf.update_ahrs(sensor_data.mag)
 
 
         timestamps.append(sensor_data.time)

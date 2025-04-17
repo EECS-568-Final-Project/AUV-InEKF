@@ -77,7 +77,7 @@ class IEKF:
         except FloatingPointError:
             print("Floating Point Error in covariance update")
             breakpoint()
-            
+
 
         self.state = new_state
 
@@ -123,7 +123,7 @@ class IEKF:
         measurement = dvl_rotation_body @ z.as_matrix() + self._skew(dvl_position_body) @ self.last_controlInput['linear_acceleration'].as_matrix() - self.bias[0]
 
         zeros = np.zeros((3,3))
-        measurement_jacobian = np.block([zeros, zeros, np.eye(3), zeros, zeros])
+        measurement_jacobian = np.block([zeros, np.eye(3), zeros, zeros, zeros])
 
         pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.state), np.eye(6))
 
