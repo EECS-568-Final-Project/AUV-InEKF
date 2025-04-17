@@ -99,11 +99,11 @@ class IEKF:
         V = (self.inverse_state @ measurement)[:3]
 
         # TODO: Figure out what is self.sys.invR from paper code
-        # inverseNoise = np.zeros((3,3))
-        # inverseNoise[-1, -1] = 1 / self.depth_measurement_noise
+        inverseNoise = np.zeros((3,3))
+        inverseNoise[-1, -1] = 1 / self.depth_measurement_noise[2, 2]
         
         pred_meas_cov = inv(pred_measurement @ self.covariance @ pred_measurement.T)
-        meas_cov_inv = pred_meas_cov - pred_meas_cov @ (self.rotation.T @ self.depth_measurement_noise @ self.rotation + pred_meas_cov) @ pred_meas_cov
+        meas_cov_inv = pred_meas_cov - pred_meas_cov @ (self.rotation.T @ inverseNoise @ self.rotation + pred_meas_cov) @ pred_meas_cov
 
         # Kalman gain
         kalman_gain = self.covariance @ pred_measurement.T @ meas_cov_inv
