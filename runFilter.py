@@ -3,6 +3,9 @@ import numpy as np
 from common import *
 import readData
 from IEKF import IEKF
+from pprint import pprint
+
+from plotData import formatSensorData, plotRobotData
 
 def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
     predictedStates = [iekf.state.copy()]
@@ -19,11 +22,14 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
             iekf.update_depth(sensor_data.depth)
         if sensor_data.dvl is not None:
             iekf.update_dvl(sensor_data.dvl)
+        # if sensor_data.mag is not None:
+        #     iekf.update_ahrs(sensor_data.mag)
 
 
         timestamps.append(sensor_data.time)
         predictedStates.append(iekf.state.copy())
 
+    return predictedStates, timestamps
 
 def main():
 
@@ -57,7 +63,14 @@ def main():
         measurement_noise=measurement_noise
     )
 
-    run_filter(sensor_data, iekf)
+    # Predicted States list[5x5 ndarray]
+    # Timestamps list[float]
+
+    predictedStates, timestamps = run_filter(sensor_data, iekf)
+    plotRobotData(
+            sensor_data,
+            predictedStates
+        )
 
 if __name__ == '__main__':
     main()

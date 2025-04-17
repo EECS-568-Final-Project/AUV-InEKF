@@ -12,7 +12,7 @@ class IEKF:
         self.process_noise = process_noise
         self.depth_measurement_noise = measurement_noise['depth']
         self.dvl_measurement_noise = measurement_noise['dvl']
-        # self.ahrs_noise = measurement_noise['ahrs']
+        self.ahrs_noise = measurement_noise['ahrs']
 
         # Dict, {'linear_acceleration': Vec3, 'angular_velocity': Vec3}
         self.last_controlInput = None 
@@ -128,7 +128,30 @@ class IEKF:
         return self.state, self.covariance
     
     def update_ahrs(self, z):
-        pass
+
+        zeros = np.zeros((3,3))
+        measurement_jacobian = np.block([np.eye(3), zeros, zeros, zeros, zeros])
+
+        pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.state), np.eye(6))
+        full_measurement = np.array([z[0], z[1], z[2], 0, 1])
+
+        # Make innovation vector 
+        V = (self.state @ full_measurement)[:3]
+        
+        pred_meas_cov = pred_measurement @ self.covariance @ pred_measurement.T
+        meas_cov_inv = inv(pred_meas_cov + self.ahrs_noise)
+
+        # Kalman gain
+        kalman_gain = self.covariance @ pred_measurement.T @ meas_cov_inv
+        state_gain = kalman_gain[:9]
+        bias_gain = kalman_gain[9:]
+
+        self.state = expm(self._wedge(state_gain @ V)) @ self.state
+        self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
+
+        self.covariance = (np.eye(15) - kalman_gain @ pred_measurement) @ self.covariance
+        
+        return self.state, self.covariance
 
     def _skew(self, v):
         return np.array([
@@ -165,41 +188,6 @@ class IEKF:
 
     def _vee(self, x):
         return np.array([x[2, 1], x[0, 2], x[1, 0]])
-
-    def run_filter(self, sensor_data):
-        predicted_states = [self.state]
-        
-        timestamps = [sensor_data[0].time]
-        last_timestamp = sensor_data[0].time
-
-
-        # TODO: sensor_data is expected to be a list of SensorData
-        # data.depth is a float
-        # data.dvl is Vec3 transformed to matrix in the function
-        for data in sensor_data[1:]:
-            dt = data.time - last_timestamp
-            last_timestamp = data.time
-
-            # Predict
-            control = {
-                'linear_acceleration': data.linear_acceleration,
-                'angular_velocity': data.angular_velocity,
-            }
-            self.predict(control, dt)
-
-            # Update
-            if data.depth is not None:
-                self.update_depth(data.depth)
-            if data.dvl is not None:
-                self.update_dvl(data.dvl)
-            if data.ahrs is not None:
-                self.update_ahrs(data.ahrs)
-
-
-            predicted_states.append(self.state.copy())
-            timestamps.append(data.time)
-
-        return predicted_states, timestamps
 
 
     @property

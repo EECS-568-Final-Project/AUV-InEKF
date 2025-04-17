@@ -53,6 +53,7 @@ class SensorData:
     lin_acc: Vec3
     ang_vel: Vec3
     depth: float
+    mag: Vec3
 
     def floatify(self):
         self.imu_dt = float(self.imu_dt)
@@ -60,3 +61,4 @@ class SensorData:
         self.lin_acc = Vec3(*map(float, self.lin_acc))
         self.ang_vel = Vec3(*map(float, self.ang_vel))
         self.depth = float(self.depth)
+        self.mag = Vec3(*map(float, self.mag))

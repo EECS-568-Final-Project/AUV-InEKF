@@ -18,6 +18,7 @@ def read_csv_data(csvFilePath, dataSource="IMU"):
                     lin_acc=None,
                     ang_vel=None,
                     depth=None,
+                    mag=None
                 )
                 
                 if dataSource == "IMU":
@@ -47,6 +48,15 @@ def read_csv_data(csvFilePath, dataSource="IMU"):
 
                 elif dataSource == "Depth":
                     sensor_data.depth = float(row['data'])
+
+                elif dataSource == "AHRS":
+                    magnotometer_data = Vec3(
+                        float(row['theta_0']),
+                        float(row['theta_1']),
+                        float(row['theta_2'])
+                    )
+
+                    sensor_data.mag = magnotometer_data
 
                 sensor_data_list.append(sensor_data)
 
@@ -82,7 +92,8 @@ def process_sensor_data(type="stationary"):
     DIR = "data/"
     dataSources = [("_imu.csv", "IMU"),
                    ("_dvl.csv", "DVL"),
-                   ("_depth.csv", "Depth")]
+                   ("_depth.csv", "Depth"),
+                   ("_ahrs.csv", "AHRS")]
 
     results = []
     for dataSource in dataSources:
