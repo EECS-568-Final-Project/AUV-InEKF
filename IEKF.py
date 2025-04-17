@@ -128,17 +128,39 @@ class IEKF:
         return self.state, self.covariance
     
     def update_ahrs(self, z):
+        roll, pitch, yaw = z[0], z[1], z[2]
+        R_x = np.array([
+            [1, 0, 0],
+            [0, np.cos(roll), -np.sin(roll)],
+            [0, np.sin(roll), np.cos(roll)]
+        ])
+        
+        R_y = np.array([
+            [np.cos(pitch), 0, np.sin(pitch)],
+            [0, 1, 0],
+            [-np.sin(pitch), 0, np.cos(pitch)]
+        ])
+        
+        R_z = np.array([
+            [np.cos(yaw), -np.sin(yaw), 0],
+            [np.sin(yaw), np.cos(yaw), 0],
+            [0, 0, 1]
+        ])
+
+        R_measured = R_z @ R_y @ R_x
 
         zeros = np.zeros((3,3))
         measurement_jacobian = np.block([np.eye(3), zeros, zeros, zeros, zeros])
 
-        pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.state), np.eye(6))
-        full_measurement = np.array([z[0], z[1], z[2], 0, 1])
-
-        # Make innovation vector 
-        V = (self.state @ full_measurement)[:3]
+        pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.inverse_state), np.eye(6))
+        
+        orientation_error = logm(R_measured.T @ self.rotation)
+        if orientation_error.shape[0] > 3:
+            orientation_error = orientation_error[0:3, 0:3]
+        V = self._vee(orientation_error)
         
         pred_meas_cov = pred_measurement @ self.covariance @ pred_measurement.T
+        
         meas_cov_inv = inv(pred_meas_cov + self.ahrs_noise)
 
         # Kalman gain

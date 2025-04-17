@@ -5,7 +5,7 @@ import readData
 from IEKF import IEKF
 from pprint import pprint
 
-from plotData import formatSensorData, plotRobotData
+from plotData import plotRobotData
 
 def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
     predictedStates = [iekf.state.copy()]
@@ -22,8 +22,8 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
             iekf.update_depth(sensor_data.depth)
         if sensor_data.dvl is not None:
             iekf.update_dvl(sensor_data.dvl)
-        # if sensor_data.mag is not None:
-        #     iekf.update_ahrs(sensor_data.mag)
+        if sensor_data.mag is not None:
+            iekf.update_ahrs(sensor_data.mag)
 
 
         timestamps.append(sensor_data.time)
@@ -33,8 +33,11 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
 
 def main():
 
+    print("Reading Data...")
     sensor_data = readData.process_sensor_data("stationary")
+    print("Data Read")
 
+    print("Initializing Filter...")
     '''
         - Initial State
         - Initial Covariance
@@ -44,11 +47,18 @@ def main():
     I_pose = np.eye(5)
     covariance = np.eye(15)
 
-    process_noise = np.eye(15)
+    process_noise = np.zeros((15,15))
+    process_noise[0:3, 0:3] = np.eye(3) * 0.01 # Rotation noise
+    process_noise[3:6, 3:6] = np.eye(3) * 0.05 # Velocity noise
+    process_noise[6:9, 6:9] = np.eye(3) * 0.01 # Position noise
+    process_noise[9:12, 9:12] = np.eye(3) * 0.001 # Bias noise
+    process_noise[12:15, 12:15] = np.eye(3) * 0.01 # Bias noise
+
     depth_measurement_noise = np.zeros((3, 3))
-    depth_measurement_noise[2, 2] = 1 # Depth measurement noise
-    dvl_measurement_noise = np.eye(3)
-    ahrs_measurement_noise = np.eye(3)
+    depth_measurement_noise[2, 2] = 0.05 # Depth measurement noise
+
+    dvl_measurement_noise = np.eye(3) * 0.5
+    ahrs_measurement_noise = np.eye(3) * 0.02
 
     measurement_noise = {
         'depth': depth_measurement_noise,
@@ -63,10 +73,11 @@ def main():
         measurement_noise=measurement_noise
     )
 
-    # Predicted States list[5x5 ndarray]
-    # Timestamps list[float]
 
+    print("Running Filter...")
     predictedStates, timestamps = run_filter(sensor_data, iekf)
+
+    print("Plotting Results")
     plotRobotData(
             sensor_data,
             predictedStates
