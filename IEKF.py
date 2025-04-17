@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.linalg import expm, logm, block_diag
+from scipy.spatial.transform import Rotation
+
 from numpy.linalg import inv
 from common import *
 
@@ -60,7 +62,22 @@ class IEKF:
 
         error_update = expm(error_dyanmics * dt)
 
-        self.covariance = error_update @ (self.covariance + adjoint @ self.process_noise @ adjoint.T * dt) @ error_update.T
+        if np.any(np.isnan(error_update)) or np.any(np.isinf(error_update)):
+            print("Issue in error_update")
+            breakpoint()
+        if np.any(np.isnan(self.covariance)) or np.any(np.isinf(self.covariance)):
+            print("Issue in covariance")
+            breakpoint()
+
+        try:
+            with np.errstate(all='raise'):
+                middle = self.covariance + adjoint @ self.process_noise @ adjoint.T * dt
+                self.covariance = error_update @ (middle) @ error_update.T
+
+        except FloatingPointError:
+            print("Floating Point Error in covariance update")
+            breakpoint()
+            
 
         self.state = new_state
 
@@ -100,8 +117,9 @@ class IEKF:
         return self.state, self.covariance
 
     def update_dvl(self, z: Vec3):
-        dvl_rotation_body = np.eye(3)
-        dvl_position_body = np.zeros((3,))
+        dvl_rotation_body = Rotation.from_euler('xyz', [6, 3, 90], degrees=True).as_matrix()
+        dvl_position_body = np.array([-0.17137, 0.00922, -0.33989])
+
         measurement = dvl_rotation_body @ z.as_matrix() + self._skew(dvl_position_body) @ self.last_controlInput['linear_acceleration'].as_matrix() - self.bias[0]
 
         zeros = np.zeros((3,3))
@@ -155,13 +173,16 @@ class IEKF:
         pred_measurement = measurement_jacobian @ block_diag(self._adjoint(self.inverse_state), np.eye(6))
         
         orientation_error = logm(R_measured.T @ self.rotation)
+        
         if orientation_error.shape[0] > 3:
             orientation_error = orientation_error[0:3, 0:3]
         V = self._vee(orientation_error)
         
         pred_meas_cov = pred_measurement @ self.covariance @ pred_measurement.T
-        
-        meas_cov_inv = inv(pred_meas_cov + self.ahrs_noise)
+
+        # Singular Matrix Error
+        regularizationTerm = np.eye(pred_meas_cov.shape[0]) * 1e-3
+        meas_cov_inv = inv(pred_meas_cov + self.ahrs_noise + regularizationTerm)
 
         # Kalman gain
         kalman_gain = self.covariance @ pred_measurement.T @ meas_cov_inv

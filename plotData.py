@@ -126,7 +126,7 @@ def plotRobotData(sensor_data: list[SensorData],
     imu, dvl, depth, ahrs = formatSensorData(sensor_data)
 
     ##### FIXME
-    size = len(predicted_states) * 0.20
+    size = len(predicted_states) * 0.05
     imu = imu[:int(size)]
     dvl = dvl[:int(size)]
     depth = depth[:int(size)]
