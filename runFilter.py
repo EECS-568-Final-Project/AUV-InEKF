@@ -12,7 +12,7 @@ import sys
 from plotData import plotRobotData
 
 
-def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
+def run_filter(sensor_data_list: list[SensorData], iekf: IEKF, ahrs: bool = True):
     predictedStates = [iekf.state.copy()]
     timestamps = [sensor_data_list[0].time]
 
@@ -30,7 +30,7 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
             iekf.update_depth(sensor_data.depth)
         if sensor_data.dvl is not None:
             iekf.update_dvl(sensor_data.dvl)
-        if sensor_data.mag is not None:
+        if ahrs and sensor_data.mag is not None:
             iekf.update_ahrs(sensor_data.mag)
 
         timestamps.append(sensor_data.time)
@@ -77,18 +77,14 @@ def main():
     print("Data Read")
 
     print("Initializing Filter...")
-    """
-        - Initial State
-        - Initial Covariance
-        - Process Noise
-        - Measurement Noise
-    """
+    
+    ################################ AHRS  #############################
     I_pose = np.eye(5)
     covariance = np.eye(15)
 
     process_noise = np.zeros((15, 15))
     process_noise[0:3, 0:3] = np.eye(3) * 1  # Rotation noise
-    process_noise[3:6, 3:6] = np.eye(3) * 5  # Velocity noise
+    process_noise[3:6, 3:6] = np.eye(3) * 2  # Velocity noise
     process_noise[6:9, 6:9] = np.eye(3) * 1  # Position noise
     process_noise[9:12, 9:12] = np.eye(3) * 0.1  # Bias noise
     process_noise[12:15, 12:15] = np.eye(3) * 1  # Bias noise
@@ -96,7 +92,49 @@ def main():
     depth_measurement_noise = np.zeros((3, 3))
     depth_measurement_noise[2, 2] = 0.05  # Depth measurement noise
 
-    dvl_measurement_noise = np.eye(3) * 0.5
+    dvl_measurement_noise = np.eye(3) * 0.02
+    ahrs_measurement_noise = np.eye(3) * 0.02
+
+    measurement_noise: SensorNoise = {
+        "depth": depth_measurement_noise,
+        "dvl": dvl_measurement_noise,
+        "ahrs": ahrs_measurement_noise,
+    }
+
+    iekf = IEKF(
+        initial_state=I_pose,
+        initial_covariance=covariance,
+        process_noise=process_noise,
+        measurement_noise=measurement_noise,
+    )
+    ################################ AHRS  #############################
+
+
+    print("Running Filter...")
+    start = time.perf_counter()
+    predictedStates, timestamps = run_filter(sensor_data, iekf)
+    end = time.perf_counter()
+    microseconds = (end - start) * 10**6
+    print(f"Time taken to run AHRS filter: {microseconds} micro seconds")
+
+
+    ############################# NO AHRS  #############################
+    print("Running Filter Without Noise...")
+
+    I_pose = np.eye(5)
+    covariance = np.eye(15)
+
+    process_noise = np.zeros((15, 15))
+    process_noise[0:3, 0:3] = np.eye(3) * 1  # Rotation noise
+    process_noise[3:6, 3:6] = np.eye(3) * 2  # Velocity noise
+    process_noise[6:9, 6:9] = np.eye(3) * 1  # Position noise
+    process_noise[9:12, 9:12] = np.eye(3) * 0.1  # Bias noise
+    process_noise[12:15, 12:15] = np.eye(3) * 1  # Bias noise
+
+    depth_measurement_noise = np.zeros((3, 3))
+    depth_measurement_noise[2, 2] = 0.05  # Depth measurement noise
+
+    dvl_measurement_noise = np.eye(3) * 0.02
     ahrs_measurement_noise = np.eye(3) * 0.02
 
     measurement_noise: SensorNoise = {
@@ -112,16 +150,13 @@ def main():
         measurement_noise=measurement_noise,
     )
 
-    print("Running Filter...")
-    start = time.perf_counter()
-    predictedStates, timestamps = run_filter(sensor_data, iekf)
-    end = time.perf_counter()
+    noAHRS_predictedStates, timestamps = run_filter(sensor_data, iekf, ahrs=False)
 
-    microseconds = (end - start) * 10**6
-    print(f"Time taken to run filter: {microseconds} micro seconds")
+    ############################# NO AHRS  #############################
+
 
     print("Plotting Results")
-    plotRobotData(sensor_data, predictedStates)
+    plotRobotData(sensor_data, predictedStates, noAHRS_predictedStates)
 
 
 if __name__ == "__main__":
