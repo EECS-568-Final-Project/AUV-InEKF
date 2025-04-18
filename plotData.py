@@ -99,7 +99,7 @@ def formatSensorData(sensor_data: list[SensorData]):
 
 
 def plotRobotData(
-    sensor_data: list[SensorData], predicted_states: list[np.ndarray]
+    sensor_data: list[SensorData], predicted_states: list[np.ndarray], noAHRS_predictedStates: list[np.ndarray] = []
 ) -> None:
     """
     Compare raw SensorData to your list of SE(3) predicted_states.
@@ -135,11 +135,14 @@ def plotRobotData(
     try: 
         sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
         pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
+        noAHRS_pred_vel = np.vstack([S[:3, 3] for S in noAHRS_predictedStates])
 
         fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         for i, comp in enumerate(["x", "y", "z"]):
             ax[i].plot(t, sensor_vel[:, i], label=f"DVL vel {comp}")
-            ax[i].plot(t, pred_vel[:, i], "--", label=f"pred vel {comp}")
+            ax[i].plot(t, pred_vel[:, i], "--", label=f"pred vel {comp}", color="orange")
+            ax[i].plot(t, noAHRS_pred_vel[:, i], ":", label=f"pred vel {comp} (no AHRS)", color='red')
+
             ax[i].set_ylabel(f"v_{comp} (m/s)")
             ax[i].legend(loc="best", fontsize="small")
         ax[-1].set_xlabel("time (s)")
@@ -151,10 +154,13 @@ def plotRobotData(
     try:
         sensor_depth = np.array([data for data in depth])
         pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
+        noAHRS_pred_pos = np.vstack([S[:3, 4] for S in noAHRS_predictedStates])
 
         fig2, ax2 = plt.subplots(figsize=(8, 4))
         ax2.plot(t, sensor_depth, label="depth sensor")
-        ax2.plot(t, pred_pos[:, 2], "--", label="predicted z")
+        ax2.plot(t, pred_pos[:, 2], "--", label="predicted z", color="orange")
+        ax2.plot(t, noAHRS_pred_pos[:, 2], ":", label="predicted z (no AHRS)", color='red')
+
         ax2.set_xlabel("time (s)")
         ax2.set_ylabel("depth (m)")
         ax2.legend()
@@ -171,9 +177,15 @@ def plotRobotData(
         pred_euler = R.from_matrix(Rs).as_euler('zyx', degrees=True)  # roll,pitch,yaw
         pred_yaw   = pred_euler[:,0]
 
+        noAHRS_Rs = np.array([ S[:3,:3] for S in noAHRS_predictedStates ])
+        noAHRS_pred_euler = R.from_matrix(noAHRS_Rs).as_euler('zyx', degrees=True)  # roll,pitch,yaw
+        noAHRS_pred_yaw   = noAHRS_pred_euler[:,0]
+
         fig3, ax3 = plt.subplots(figsize=(8,4))
         ax3.plot(t, sensor_yaw,    label='mag heading')
-        ax3.plot(t, pred_yaw,   '--', label='predicted yaw')
+        ax3.plot(t, pred_yaw,   '--', label='predicted yaw', color='orange')
+        ax3.plot(t, noAHRS_pred_yaw, ':', label='predicted yaw (no AHRS)', color='red')
+
         ax3.set_xlabel('time (s)')
         ax3.set_ylabel('yaw (deg)')
         ax3.legend()
@@ -185,7 +197,9 @@ def plotRobotData(
     try:
         fig4 = plt.figure(figsize=(6, 6))
         ax4 = fig4.add_subplot(projection="3d")
-        ax4.plot(pred_pos[:, 0], pred_pos[:, 1], pred_pos[:, 2], "--", label="predicted")
+        ax4.plot(pred_pos[:, 0], pred_pos[:, 1], pred_pos[:, 2], "--", label="predicted", color="orange")
+        ax4.plot(noAHRS_pred_pos[:, 0], noAHRS_pred_pos[:, 1], noAHRS_pred_pos[:, 2], ":", label="predicted (no AHRS)", color='red')
+
         # if you have an external “true” position series, plot it here too
         ax4.set_xlabel("X (m)")
         ax4.set_ylabel("Y (m)")
