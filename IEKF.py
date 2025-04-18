@@ -102,9 +102,6 @@ class IEKF:
         zero = np.zeros((3, 3))
         measurement_jacobian = np.block([zero, zero, np.eye(3), zero, zero])
 
-        I = np.eye(6)
-        zero = np.zeros((9, 6))
-
         pred_measurement = measurement_jacobian @ block_diag(
             self._adjoint(self.inverse_state), np.eye(6)
         )
@@ -114,7 +111,6 @@ class IEKF:
         # Make innovation vector
         V = (self.inverse_state @ measurement)[:3]
 
-        # TODO: Figure out what is self.sys.invR from paper code
         inverseNoise = np.zeros((3, 3))
         inverseNoise[-1, -1] = 1 / self.depth_measurement_noise[2, 2]
 
@@ -122,7 +118,7 @@ class IEKF:
         meas_cov_inv = (
             pred_meas_cov
             - pred_meas_cov
-            @ (self.rotation.T @ inverseNoise @ self.rotation + pred_meas_cov)
+            @ inv(self.rotation.T @ inverseNoise @ self.rotation + pred_meas_cov)
             @ pred_meas_cov
         )
 
@@ -297,3 +293,7 @@ class IEKF:
                 [np.zeros((1, 3)), 0, 1],
             ]
         )
+
+    @property
+    def lin_acc_bias(self):
+        return self.bias[:, 0]
