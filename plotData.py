@@ -133,8 +133,8 @@ def plotRobotData(
 
     # --- 1) velocities: DVL vs predicted ---
     try: 
-        sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
         pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
+        sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
         noAHRS_pred_vel = np.vstack([S[:3, 3] for S in noAHRS_predictedStates])
 
         fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
@@ -152,9 +152,9 @@ def plotRobotData(
 
     # --- 2) depth vs predicted z-position ---
     try:
-        sensor_depth = np.array([data for data in depth])
         pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
         noAHRS_pred_pos = np.vstack([S[:3, 4] for S in noAHRS_predictedStates])
+        sensor_depth = np.array([data for data in depth])
 
         fig2, ax2 = plt.subplots(figsize=(8, 4))
         ax2.plot(t, sensor_depth, label="depth sensor")
@@ -210,132 +210,6 @@ def plotRobotData(
         print("No 3D trajectory data available to plot.")
 
     plt.show()
-
-
-'''
-def plotRobotPoses(sensor_data: list[SensorData],
-                   predicted_states: list[np.ndarray],
-                   timestamps: list[float]) -> None:
-    """
-    Plot the sensor data and predicted states from the InEKF.
-    
-    Args:
-        sensor_data: List of SensorData objects containing raw measurements
-        predicted_states: List of SE(3) matrices representing predicted robot states
-        timestamps: List of timestamps for each measurement/prediction
-    """
-    # Extract sensor measurements
-    dvl_measurements = [data.dvl for data in sensor_data]
-    depth_measurements = [data.depth for data in sensor_data]
-    mag_measurements = [data.mag for data in sensor_data]
-    
-    # Extract predicted positions, velocities, and rotations from the state matrices
-    pred_positions = []
-    pred_velocities = []
-    pred_rotations = []
-    
-    for state in predicted_states:
-        # Extract position (top-right 3x1 block)
-        position = state[:3, 4]
-        pred_positions.append(position)
-        
-        # Extract velocity (middle column of the upper block)
-        velocity = state[:3, 3]
-        pred_velocities.append(velocity)
-        
-        # Extract rotation matrix (top-left 3x3 block)
-        rotation = state[:3, :3]
-        # Convert rotation matrix to euler angles for easier visualization
-        roll = np.arctan2(rotation[2, 1], rotation[2, 2])
-        pitch = np.arctan2(-rotation[2, 0], np.sqrt(rotation[2, 1]**2 + rotation[2, 2]**2))
-        yaw = np.arctan2(rotation[1, 0], rotation[0, 0])
-        pred_rotations.append(np.array([roll, pitch, yaw]))
-    
-    # Create a figure with subplots
-    fig = plt.figure(figsize=(15, 15))
-    
-    # 3D trajectory plot
-    ax1 = fig.add_subplot(321, projection='3d')
-    
-    # Plot predicted trajectory
-    pred_x = [pos[0] for pos in pred_positions]
-    pred_y = [pos[1] for pos in pred_positions]
-    pred_z = [pos[2] for pos in pred_positions]
-    ax1.plot(pred_x, pred_y, pred_z, 'r-', linewidth=2, label='Predicted Path')
-    
-    # Add start and end markers
-    if len(pred_positions) > 0:
-        ax1.plot([pred_x[0]], [pred_y[0]], [pred_z[0]], 'go', markersize=8, label='Start')
-        ax1.plot([pred_x[-1]], [pred_y[-1]], [pred_z[-1]], 'bo', markersize=8, label='End')
-    
-    ax1.set_title('3D Predicted Trajectory')
-    ax1.set_xlabel('X (m)')
-    ax1.set_ylabel('Y (m)')
-    ax1.set_zlabel('Z (m)')
-    ax1.legend()
-    ax1.grid(True)
-    
-    # Position plot
-    ax2 = fig.add_subplot(322)
-    ax2.plot(timestamps, [pos[0] for pos in pred_positions], 'r-', label='X')
-    ax2.plot(timestamps, [pos[1] for pos in pred_positions], 'g-', label='Y')
-    ax2.plot(timestamps, [pos[2] for pos in pred_positions], 'b-', label='Z')
-    ax2.set_title('Position vs Time')
-    ax2.set_xlabel('Time (s)')
-    ax2.set_ylabel('Position (m)')
-    ax2.legend()
-    ax2.grid(True)
-    
-    # Velocity plot
-    ax3 = fig.add_subplot(323)
-    ax3.plot(timestamps, [vel[0] for vel in pred_velocities], 'r-', label='X')
-    ax3.plot(timestamps, [vel[1] for vel in pred_velocities], 'g-', label='Y')
-    ax3.plot(timestamps, [vel[2] for vel in pred_velocities], 'b-', label='Z')
-    ax3.set_title('Predicted Velocity vs Time')
-    ax3.set_xlabel('Time (s)')
-    ax3.set_ylabel('Velocity (m/s)')
-    ax3.legend()
-    ax3.grid(True)
-    
-    # DVL measurements plot
-    ax4 = fig.add_subplot(324)
-    ax4.plot(timestamps, [dvl.x for dvl in dvl_measurements], 'r--', label='X')
-    ax4.plot(timestamps, [dvl.y for dvl in dvl_measurements], 'g--', label='Y')
-    ax4.plot(timestamps, [dvl.z for dvl in dvl_measurements], 'b--', label='Z')
-    ax4.set_title('DVL Measurements vs Time')
-    ax4.set_xlabel('Time (s)')
-    ax4.set_ylabel('Velocity (m/s)')
-    ax4.legend()
-    ax4.grid(True)
-    
-    # Orientation plot (Euler angles)
-    ax5 = fig.add_subplot(325)
-    ax5.plot(timestamps, [rot[0] for rot in pred_rotations], 'r-', label='Roll')
-    ax5.plot(timestamps, [rot[1] for rot in pred_rotations], 'g-', label='Pitch')
-    ax5.plot(timestamps, [rot[2] for rot in pred_rotations], 'b-', label='Yaw')
-    ax5.set_title('Orientation vs Time')
-    ax5.set_xlabel('Time (s)')
-    ax5.set_ylabel('Angle (rad)')
-    ax5.legend()
-    ax5.grid(True)
-    
-    # Depth measurements plot
-    ax6 = fig.add_subplot(326)
-    ax6.plot(timestamps, depth_measurements, 'b-', label='Depth Measurement')
-    ax6.plot(timestamps, [pos[2] for pos in pred_positions], 'r--', label='Predicted Z')
-    ax6.set_title('Depth vs Time')
-    ax6.set_xlabel('Time (s)')
-    ax6.set_ylabel('Depth (m)')
-    ax6.legend()
-    ax6.grid(True)
-    ax6.invert_yaxis()  # Depth typically increases downward
-    
-    plt.tight_layout()
-    plt.show()
-    
-    return
-
-'''
 
 
 def main():

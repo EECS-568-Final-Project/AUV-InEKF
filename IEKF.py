@@ -212,7 +212,7 @@ class IEKF:
         )
 
         # orientation_error = logm(R_measured.T @ self.rotation)
-        orientation_error = logm( self.rotation.T @ R_measured)
+        orientation_error = logm(self.rotation.T @ R_measured)
 
         if orientation_error.shape[0] > 3:
             orientation_error = orientation_error[0:3, 0:3]
