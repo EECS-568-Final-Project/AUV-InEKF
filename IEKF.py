@@ -38,11 +38,17 @@ class IEKF:
 
         self.bias = np.zeros((2, 3))
 
-    def predict(self, control_input: ControlInput, dt: float):
-        self.last_controlInput = control_input
+        self.dvl_rotation_body = Rotation.from_euler(
+            "xyz", [6, 3, 90], degrees=True
+        ).as_matrix()
+        self.dvl_position_body = self._skew(np.array([-0.17137, 0.00922, -0.33989]))
 
-        acceleration = control_input["linear_acceleration"].as_matrix()
-        gyroscope = control_input["angular_velocity"].as_matrix()
+    def predict(self, control_input: ControlInput, dt: float):
+        acceleration = (
+            control_input["linear_acceleration"].as_matrix() - self.lin_acc_bias
+        )
+        gyroscope = control_input["angular_velocity"].as_matrix() - self.ang_vel_bias
+        self.last_ang_vel = gyroscope
 
         gravity = np.array([0, 0, -9.81])
 
@@ -136,16 +142,10 @@ class IEKF:
         return self.state, self.covariance
 
     def update_dvl(self, z: Vec3):
-        dvl_rotation_body = Rotation.from_euler(
-            "xyz", [6, 3, 90], degrees=True
-        ).as_matrix()
-        dvl_position_body = np.array([-0.17137, 0.00922, -0.33989])
 
         measurement = (
-            dvl_rotation_body @ z.as_matrix()
-            + self._skew(dvl_position_body)
-            @ self.last_controlInput["angular_velocity"].as_matrix()
-            - self.bias[0]
+            self.dvl_rotation_body @ z.as_matrix()
+            + self.dvl_position_body @ self.last_ang_vel
         )
 
         zeros = np.zeros((3, 3))
@@ -267,19 +267,19 @@ class IEKF:
         return np.array([x[2, 1], x[0, 2], x[1, 0]])
 
     @property
-    def rotation(self):
+    def rotation(self) -> array:
         return self.state[:3, :3]
 
     @property
-    def velocity(self):
+    def velocity(self) -> array:
         return self.state[:3, 3]
 
     @property
-    def position(self):
+    def position(self) -> array:
         return self.state[:3, 4]
 
     @property
-    def inverse_state(self):
+    def inverse_state(self) -> array:
         rotation_transpose = self.rotation.T
         # breakpoint()
         return np.block(
@@ -295,5 +295,9 @@ class IEKF:
         )
 
     @property
-    def lin_acc_bias(self):
-        return self.bias[:, 0]
+    def ang_vel_bias(self) -> array:
+        return self.bias[0]
+
+    @property
+    def lin_acc_bias(self) -> array:
+        return self.bias[1]
