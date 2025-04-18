@@ -41,7 +41,17 @@ Make sure you have the following tools installed:
     source .venv/bin/activate
    ```
 
-## Run the project:
-   ```bash
-    python runFilter.py 
-   ```
+## Running the Project
+To run the filter on a specific dataset (`fast`, `forward`, `stationary`, or `test`), provide the dataset name as a command-line argument. If no argument is given, it defaults to `stationary`.
+
+```bash
+python runFilter.py [dataset]
+```
+
+### Examples:
+```bash
+python runFilter.py fast
+python runFilter.py forward
+python runFilter.py
+```
+The last command runs the filter with the default dataset: *stationary*
