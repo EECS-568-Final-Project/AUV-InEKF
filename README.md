@@ -54,4 +54,4 @@ python runFilter.py fast
 python runFilter.py forward
 python runFilter.py
 ```
-The last command runs the filter with the default dataset: *stationary*
+The last command runs the filter with the default dataset: `stationary`
