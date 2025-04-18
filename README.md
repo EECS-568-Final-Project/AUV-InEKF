@@ -1,5 +1,10 @@
 # AUV Localization For RoboSub 2025
 
+### University of Michigan
+### EECS 568 - Mobile Robotics
+### Authors:
+Brandon Chao, Arnav Mummineni, Uygur Tepe
+
 ## Environment Setup (Using `uv`)
 
 This project uses [`uv`](https://github.com/astral-sh/uv) for fast, reproducible Python environment management. The environment is defined by:
