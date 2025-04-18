@@ -2,59 +2,51 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from common import *
+from readData import process_sensor_data
 
 
-def readIMUData(file_name: str) -> tuple[list[Vec3], list[Vec3]]:
-    data = {
-        'posisiton': [],
-        'velocity': [],
-    }
-
-    with open(file_name, 'r') as file:
-        # file is csv format first column is time, second is position.x, third is position.y, fourth is position.z, fith is velocity.x, sixth is velocity.y, seventh is velocity.z
-        for line in file:
-            # Skip first line
-            if line.startswith("Time"):
-                continue
-
-            line = line.strip().split(',')
-            if len(line) < 7:
-                continue
-
-            data['posisiton'].append(Vec3(float(line[1]), float(line[2]), float(line[3])))
-            data['velocity'].append(Vec3(float(line[4]), float(line[5]), float(line[6])))
-    return data['posisiton'], data['velocity']
-
-
-def plotPath(data: list[Vec3]) -> None:
-    # Plot each axis separately
+def plot_xyz(
+    data: list[tuple[float, Vec3]],
+    x_label: str = "x",
+    y_label: str = "y",
+    z_label: str = "z",
+    title: str = "Sensor Data",
+) -> None:
     fig, axs = plt.subplots(3, 1, figsize=(10, 10))
-    fig.suptitle("Sensor Data")
+    fig.suptitle(title)
     fig.subplots_adjust(hspace=0.5)
-    labels = ["X", "Y", "Z"]
+    times = [time for time, _ in data]
 
     axs[0].set_xlabel("Time")
-    axs[0].set_ylabel("X")
-    axs[0].plot(
-        [pose.x for pose in data],
-    )
+    axs[0].set_ylabel(x_label)
+    axs[0].plot(times, [vec.x for _, vec in data])
     axs[1].set_xlabel("Time")
-    axs[1].set_ylabel("Y")
-    axs[1].plot(
-        [pose.y for pose in data],
-    )
+    axs[1].set_ylabel(y_label)
+    axs[1].plot(times, [vec.y for _, vec in data])
 
     axs[2].set_xlabel("Time")
-    axs[2].set_ylabel("Z")
-    axs[2].plot(
-        [pose.z for pose in data],
-    )
-    for i, ax in enumerate(axs):
-        ax.set_title(f"Path in {labels[i]} direction")
+    axs[2].set_ylabel(z_label)
+    axs[2].plot(times, [vec.z for _, vec in data])
+
+    for ax, label in zip(axs, (x_label, y_label, z_label)):
+        ax.set_title(f"{label} data")
         ax.grid()
     plt.show()
 
 
+def plot_imu(data: list[SensorData]) -> None:
+    plot_xyz(
+        [(e.time, e.lin_acc) for e in data if e.lin_acc is not None],
+        title="Linear acceleration",
+    )
+    plot_xyz(
+        [(e.time, e.ang_vel) for e in data if e.ang_vel is not None],
+        title="Angular velocity",
+    )
+
+
+def plot_dvl(data: list[SensorData]) -> None:
+    plot_xyz([(e.time, e.dvl) for e in data if e.dvl is not None], title="Dvl velocity")
 
 
 def fillInGaps(sensor_data):
@@ -67,7 +59,7 @@ def fillInGaps(sensor_data):
                 break
 
         sensor[:idx] = [firstIndex] * idx
-    
+
 
 def formatSensorData(sensor_data: list[SensorData]):
     def appendLast(dataSources):
@@ -100,14 +92,15 @@ def formatSensorData(sensor_data: list[SensorData]):
             appendLast([imu, dvl, depth])
 
         lastValues = data
-    
+
     fillInGaps([imu, dvl, depth, ahrs])
 
     return imu, dvl, depth, ahrs
 
 
-def plotRobotData(sensor_data: list[SensorData],
-                  predicted_states: list[np.ndarray]) -> None:
+def plotRobotData(
+    sensor_data: list[SensorData], predicted_states: list[np.ndarray]
+) -> None:
     """
     Compare raw SensorData to your list of SE(3) predicted_states.
 
@@ -127,49 +120,45 @@ def plotRobotData(sensor_data: list[SensorData],
 
     ##### FIXME
     size = len(predicted_states) * 1
-    imu = imu[:int(size)]
-    dvl = dvl[:int(size)]
-    depth = depth[:int(size)]
-    ahrs = ahrs[:int(size)]
-    predicted_states = predicted_states[:int(size)]
+    imu = imu[: int(size)]
+    dvl = dvl[: int(size)]
+    depth = depth[: int(size)]
+    ahrs = ahrs[: int(size)]
+    predicted_states = predicted_states[: int(size)]
     #####
 
     # --- extract timestamps ---
     t = np.array([sd.time for sd in sensor_data])
-    t = t[:len(predicted_states)]
+    t = t[: len(predicted_states)]
 
     # --- 1) velocities: DVL vs predicted ---
-    sensor_vel = np.vstack([ [data.x, data.y, data.z] for data in dvl ])
-    pred_vel   = np.vstack([ S[:3, 3] for S in predicted_states ])
+    sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
+    pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-    for i, comp in enumerate(['x','y','z']):
-        ax[i].plot(t, sensor_vel[:,i],    label=f'DVL vel {comp}')
-        ax[i].plot(t, pred_vel[:,i], '--', label=f'pred vel {comp}')
-        ax[i].set_ylabel(f'v_{comp} (m/s)')
-        ax[i].legend(loc='best', fontsize='small')
-    ax[-1].set_xlabel('time (s)')
-    fig.suptitle('Linear Velocity Comparison')
+    for i, comp in enumerate(["x", "y", "z"]):
+        ax[i].plot(t, sensor_vel[:, i], label=f"DVL vel {comp}")
+        ax[i].plot(t, pred_vel[:, i], "--", label=f"pred vel {comp}")
+        ax[i].set_ylabel(f"v_{comp} (m/s)")
+        ax[i].legend(loc="best", fontsize="small")
+    ax[-1].set_xlabel("time (s)")
+    fig.suptitle("Linear Velocity Comparison")
 
     # --- 2) depth vs predicted z-position ---
     sensor_depth = np.array([data for data in depth])
-    pred_pos      = np.vstack([ S[:3, 4] for S in predicted_states ])
+    pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
 
-
-    fig2, ax2 = plt.subplots(figsize=(8,4))
-    ax2.plot(t, sensor_depth,    label='depth sensor')
-    ax2.plot(t, pred_pos[:,2], '--', label='predicted z')
-    ax2.set_xlabel('time (s)')
-    ax2.set_ylabel('depth (m)')
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
+    ax2.plot(t, sensor_depth, label="depth sensor")
+    ax2.plot(t, pred_pos[:, 2], "--", label="predicted z")
+    ax2.set_xlabel("time (s)")
+    ax2.set_ylabel("depth (m)")
     ax2.legend()
-    ax2.set_title('Depth vs Predicted Z')
+    ax2.set_title("Depth vs Predicted Z")
 
     # --- 3) heading: magnetometer vs predicted yaw ---
     # magnetometer-based heading in degrees
-    sensor_yaw = np.degrees([
-        np.arctan2(data.y, data.x)
-        for data in ahrs
-    ])
+    sensor_yaw = np.degrees([np.arctan2(data.y, data.x) for data in ahrs])
     # predicted orientation → extract yaw from R
     # Rs = np.array([ S[:3,:3] for S in predicted_states ])
     # pred_euler = R.from_matrix(Rs).as_euler('xyz', degrees=True)  # roll,pitch,yaw
@@ -184,15 +173,18 @@ def plotRobotData(sensor_data: list[SensorData],
     # ax3.set_title('Heading Comparison')
 
     # --- 4) (Optional) 3D trajectory plot ---
-    fig4 = plt.figure(figsize=(6,6))
-    ax4 = fig4.add_subplot(projection='3d')
-    ax4.plot(pred_pos[:,0], pred_pos[:,1], pred_pos[:,2], '--', label='predicted')
+    fig4 = plt.figure(figsize=(6, 6))
+    ax4 = fig4.add_subplot(projection="3d")
+    ax4.plot(pred_pos[:, 0], pred_pos[:, 1], pred_pos[:, 2], "--", label="predicted")
     # if you have an external “true” position series, plot it here too
-    ax4.set_xlabel('X (m)'); ax4.set_ylabel('Y (m)'); ax4.set_zlabel('Z (m)')
-    ax4.set_title('3D Predicted Trajectory')
+    ax4.set_xlabel("X (m)")
+    ax4.set_ylabel("Y (m)")
+    ax4.set_zlabel("Z (m)")
+    ax4.set_title("3D Predicted Trajectory")
     ax4.legend()
 
     plt.show()
+
 
 '''
 def plotRobotPoses(sensor_data: list[SensorData],
@@ -319,13 +311,13 @@ def plotRobotPoses(sensor_data: list[SensorData],
 
 '''
 
+
 def main():
     # Read the data from the file
-    position, velocity = readIMUData("data/forward_imu.csv")
-    print(f"Position: {position}")
-    # Plot the path
-    plotPath(position)
-    plotPath(velocity)
+    data = process_sensor_data("stationary")
+    plot_imu(data)
+    plot_dvl(data)
+
 
 if __name__ == "__main__":
     main()
