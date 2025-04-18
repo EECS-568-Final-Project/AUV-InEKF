@@ -133,8 +133,8 @@ def plotRobotData(
 
     # --- 1) velocities: DVL vs predicted ---
     try: 
-        sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
         pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
+        sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
 
         fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         for i, comp in enumerate(["x", "y", "z"]):
@@ -149,8 +149,8 @@ def plotRobotData(
 
     # --- 2) depth vs predicted z-position ---
     try:
-        sensor_depth = np.array([data for data in depth])
         pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
+        sensor_depth = np.array([data for data in depth])
 
         fig2, ax2 = plt.subplots(figsize=(8, 4))
         ax2.plot(t, sensor_depth, label="depth sensor")
