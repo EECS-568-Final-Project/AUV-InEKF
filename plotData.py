@@ -132,56 +132,68 @@ def plotRobotData(
     t = t[: len(predicted_states)]
 
     # --- 1) velocities: DVL vs predicted ---
-    sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
-    pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
+    try: 
+        sensor_vel = np.vstack([[data.x, data.y, data.z] for data in dvl])
+        pred_vel = np.vstack([S[:3, 3] for S in predicted_states])
 
-    fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-    for i, comp in enumerate(["x", "y", "z"]):
-        ax[i].plot(t, sensor_vel[:, i], label=f"DVL vel {comp}")
-        ax[i].plot(t, pred_vel[:, i], "--", label=f"pred vel {comp}")
-        ax[i].set_ylabel(f"v_{comp} (m/s)")
-        ax[i].legend(loc="best", fontsize="small")
-    ax[-1].set_xlabel("time (s)")
-    fig.suptitle("Linear Velocity Comparison")
+        fig, ax = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+        for i, comp in enumerate(["x", "y", "z"]):
+            ax[i].plot(t, sensor_vel[:, i], label=f"DVL vel {comp}")
+            ax[i].plot(t, pred_vel[:, i], "--", label=f"pred vel {comp}")
+            ax[i].set_ylabel(f"v_{comp} (m/s)")
+            ax[i].legend(loc="best", fontsize="small")
+        ax[-1].set_xlabel("time (s)")
+        fig.suptitle("Linear Velocity Comparison")
+    except:
+        print("No DVL data available to plot.")
 
     # --- 2) depth vs predicted z-position ---
-    sensor_depth = np.array([data for data in depth])
-    pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
+    try:
+        sensor_depth = np.array([data for data in depth])
+        pred_pos = np.vstack([S[:3, 4] for S in predicted_states])
 
-    fig2, ax2 = plt.subplots(figsize=(8, 4))
-    ax2.plot(t, sensor_depth, label="depth sensor")
-    ax2.plot(t, pred_pos[:, 2], "--", label="predicted z")
-    ax2.set_xlabel("time (s)")
-    ax2.set_ylabel("depth (m)")
-    ax2.legend()
-    ax2.set_title("Depth vs Predicted Z")
+        fig2, ax2 = plt.subplots(figsize=(8, 4))
+        ax2.plot(t, sensor_depth, label="depth sensor")
+        ax2.plot(t, pred_pos[:, 2], "--", label="predicted z")
+        ax2.set_xlabel("time (s)")
+        ax2.set_ylabel("depth (m)")
+        ax2.legend()
+        ax2.set_title("Depth vs Predicted Z")
+    except:
+        print("No depth data available to plot.")
 
     # --- 3) heading: magnetometer vs predicted yaw ---
     # magnetometer-based heading in degrees
-    sensor_yaw = np.degrees([np.arctan2(data.y, data.x) for data in ahrs])
-    # predicted orientation → extract yaw from R
-    # Rs = np.array([ S[:3,:3] for S in predicted_states ])
-    # pred_euler = R.from_matrix(Rs).as_euler('xyz', degrees=True)  # roll,pitch,yaw
-    # pred_yaw   = pred_euler[:,2]
+    try:
+        sensor_yaw = np.degrees([np.arctan2(data.y, data.x) for data in ahrs])
+        # predicted orientation → extract yaw from R
+        Rs = np.array([ S[:3,:3] for S in predicted_states ])
+        pred_euler = R.from_matrix(Rs).as_euler('xyz', degrees=True)  # roll,pitch,yaw
+        pred_yaw   = pred_euler[:,2]
 
-    # fig3, ax3 = plt.subplots(figsize=(8,4))
-    # ax3.plot(t, sensor_yaw,    label='mag heading')
-    # ax3.plot(t, pred_yaw,   '--', label='predicted yaw')
-    # ax3.set_xlabel('time (s)')
-    # ax3.set_ylabel('yaw (deg)')
-    # ax3.legend()
-    # ax3.set_title('Heading Comparison')
+        fig3, ax3 = plt.subplots(figsize=(8,4))
+        ax3.plot(t, sensor_yaw,    label='mag heading')
+        ax3.plot(t, pred_yaw,   '--', label='predicted yaw')
+        ax3.set_xlabel('time (s)')
+        ax3.set_ylabel('yaw (deg)')
+        ax3.legend()
+        ax3.set_title('Heading Comparison')
+    except:
+        print("No magnetometer data available to plot.")
 
     # --- 4) (Optional) 3D trajectory plot ---
-    fig4 = plt.figure(figsize=(6, 6))
-    ax4 = fig4.add_subplot(projection="3d")
-    ax4.plot(pred_pos[:, 0], pred_pos[:, 1], pred_pos[:, 2], "--", label="predicted")
-    # if you have an external “true” position series, plot it here too
-    ax4.set_xlabel("X (m)")
-    ax4.set_ylabel("Y (m)")
-    ax4.set_zlabel("Z (m)")
-    ax4.set_title("3D Predicted Trajectory")
-    ax4.legend()
+    try:
+        fig4 = plt.figure(figsize=(6, 6))
+        ax4 = fig4.add_subplot(projection="3d")
+        ax4.plot(pred_pos[:, 0], pred_pos[:, 1], pred_pos[:, 2], "--", label="predicted")
+        # if you have an external “true” position series, plot it here too
+        ax4.set_xlabel("X (m)")
+        ax4.set_ylabel("Y (m)")
+        ax4.set_zlabel("Z (m)")
+        ax4.set_title("3D Predicted Trajectory")
+        ax4.legend()
+    except:
+        print("No 3D trajectory data available to plot.")
 
     plt.show()
 

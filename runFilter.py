@@ -6,6 +6,8 @@ from IEKF import IEKF, ControlInput, SensorNoise
 
 from pprint import pprint
 from tqdm import tqdm
+import time
+import sys
 
 from plotData import plotRobotData
 
@@ -56,7 +58,18 @@ def set_data_zero(data: SensorData):
 def main():
 
     print("Reading Data...")
-    sensor_data = readData.process_sensor_data("stationary")
+    testCase = sys.argv[1] if len(sys.argv) > 1 else "stationary"
+    sensor_data = readData.process_sensor_data(testCase)
+
+    # Make sure at least 1 CSV was found
+    for x in sensor_data:
+        if x:
+            break
+    else:
+        print("No data found")
+        return
+    
+
     t0 = sensor_data[0].time
     for data in sensor_data:
         # set_data_zero(data)
@@ -100,7 +113,12 @@ def main():
     )
 
     print("Running Filter...")
+    start = time.perf_counter()
     predictedStates, timestamps = run_filter(sensor_data, iekf)
+    end = time.perf_counter()
+
+    microseconds = (end - start) * 10**6
+    print(f"Time taken to run filter: {microseconds} micro seconds")
 
     print("Plotting Results")
     plotRobotData(sensor_data, predictedStates)
