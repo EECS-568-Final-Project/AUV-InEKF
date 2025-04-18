@@ -165,11 +165,11 @@ def plotRobotData(
     # --- 3) heading: magnetometer vs predicted yaw ---
     # magnetometer-based heading in degrees
     try:
-        sensor_yaw = np.degrees([np.arctan2(data.y, data.x) for data in ahrs])
+        sensor_yaw = np.degrees([data.z for data in ahrs])
         # predicted orientation → extract yaw from R
         Rs = np.array([ S[:3,:3] for S in predicted_states ])
-        pred_euler = R.from_matrix(Rs).as_euler('xyz', degrees=True)  # roll,pitch,yaw
-        pred_yaw   = pred_euler[:,2]
+        pred_euler = R.from_matrix(Rs).as_euler('zyx', degrees=True)  # roll,pitch,yaw
+        pred_yaw   = pred_euler[:,0]
 
         fig3, ax3 = plt.subplots(figsize=(8,4))
         ax3.plot(t, sensor_yaw,    label='mag heading')

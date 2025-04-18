@@ -211,7 +211,8 @@ class IEKF:
             self._adjoint(self.inverse_state), np.eye(6)
         )
 
-        orientation_error = logm(R_measured.T @ self.rotation)
+        # orientation_error = logm(R_measured.T @ self.rotation)
+        orientation_error = logm(R_measured @ self.rotation.T)
 
         if orientation_error.shape[0] > 3:
             orientation_error = orientation_error[0:3, 0:3]

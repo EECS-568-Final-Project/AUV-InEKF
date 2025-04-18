@@ -30,8 +30,8 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF):
             iekf.update_depth(sensor_data.depth)
         if sensor_data.dvl is not None:
             iekf.update_dvl(sensor_data.dvl)
-        # if sensor_data.mag is not None:
-        #     iekf.update_ahrs(sensor_data.mag)
+        if sensor_data.mag is not None:
+            iekf.update_ahrs(sensor_data.mag)
 
         timestamps.append(sensor_data.time)
         predictedStates.append(iekf.state.copy())
