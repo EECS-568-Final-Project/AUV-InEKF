@@ -119,12 +119,13 @@ def plotRobotData(
     imu, dvl, depth, ahrs = formatSensorData(sensor_data)
 
     ##### FIXME
-    size = len(predicted_states) * 1
+    size = len(predicted_states) * 0.2
     imu = imu[: int(size)]
     dvl = dvl[: int(size)]
     depth = depth[: int(size)]
     ahrs = ahrs[: int(size)]
     predicted_states = predicted_states[: int(size)]
+    noAHRS_predictedStates = noAHRS_predictedStates[: int(size)]
     #####
 
     # --- extract timestamps ---
@@ -147,8 +148,9 @@ def plotRobotData(
             ax[i].legend(loc="best", fontsize="small")
         ax[-1].set_xlabel("time (s)")
         fig.suptitle("Linear Velocity Comparison")
-    except:
+    except Exception as e:
         print("No DVL data available to plot.")
+        print(e)
 
     # --- 2) depth vs predicted z-position ---
     try:
@@ -165,33 +167,48 @@ def plotRobotData(
         ax2.set_ylabel("depth (m)")
         ax2.legend()
         ax2.set_title("Depth vs Predicted Z")
-    except:
+    except Exception as e:
         print("No depth data available to plot.")
+        print(e)
 
-    # --- 3) heading: magnetometer vs predicted yaw ---
-    # magnetometer-based heading in degrees
+    # --- 3) orientation: predicted roll, pitch, yaw ---
     try:
-        sensor_yaw = np.degrees([data.z for data in ahrs])
-        # predicted orientation → extract yaw from R
-        Rs = np.array([ S[:3,:3] for S in predicted_states ])
-        pred_euler = R.from_matrix(Rs).as_euler('zyx', degrees=True)  # roll,pitch,yaw
-        pred_yaw   = pred_euler[:,0]
+        # 1. Extract predicted Euler angles (ZYX = yaw, pitch, roll)
+        Rs = np.array([S[:3, :3] for S in predicted_states])
+        pred_euler = R.from_matrix(Rs).as_euler('zyx', degrees=True)
 
-        noAHRS_Rs = np.array([ S[:3,:3] for S in noAHRS_predictedStates ])
-        noAHRS_pred_euler = R.from_matrix(noAHRS_Rs).as_euler('zyx', degrees=True)  # roll,pitch,yaw
-        noAHRS_pred_yaw   = noAHRS_pred_euler[:,0]
+        noAHRS_Rs = np.array([S[:3, :3] for S in noAHRS_predictedStates])
+        noAHRS_pred_euler = R.from_matrix(noAHRS_Rs).as_euler('zyx', degrees=True)
 
-        fig3, ax3 = plt.subplots(figsize=(8,4))
-        ax3.plot(t, sensor_yaw,    label='mag heading')
-        ax3.plot(t, pred_yaw,   '--', label='predicted yaw', color='orange')
-        ax3.plot(t, noAHRS_pred_yaw, ':', label='predicted yaw (no AHRS)', color='red')
+        # 2. Extract raw magnetometer vector components
+        mag_x = np.degrees([m.x for m in ahrs])
+        mag_y = np.degrees([m.y for m in ahrs])
+        mag_z = np.degrees([m.z for m in ahrs])
 
-        ax3.set_xlabel('time (s)')
-        ax3.set_ylabel('yaw (deg)')
-        ax3.legend()
-        ax3.set_title('Heading Comparison')
-    except:
-        print("No magnetometer data available to plot.")
+        # 3. Plot
+        labels = ["yaw", "pitch", "roll"]
+        fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+
+        axs[0].plot(t, mag_z, label="Sensor Reading", color="blue")
+        axs[0].plot(t, pred_euler[:, 0], '--', label="predicted yaw", color="orange")
+        axs[0].plot(t, noAHRS_pred_euler[:, 0], ':', label="predicted yaw (no AHRS)", color="red")
+
+        axs[1].plot(t, mag_y, label="Sensor Reading", color="blue")
+        axs[1].plot(t, pred_euler[:, 1], '--', label="predicted pitch", color="orange")
+        axs[1].plot(t, noAHRS_pred_euler[:, 1], ':', label="predicted pitch (no AHRS)", color="red")
+
+        axs[2].plot(t, mag_x, label="Sensor Reading", color="blue")
+        axs[2].plot(t, pred_euler[:, 2], '--', label="predicted roll", color="orange")
+        axs[2].plot(t, noAHRS_pred_euler[:, 2], ':', label="predicted roll (no AHRS)", color="red")
+
+        for i, label in enumerate(labels):
+            axs[i].set_ylabel(f"{label} (deg)")
+            axs[i].legend()
+            axs[i].grid(True)
+        axs[-1].set_xlabel("time (s)")
+        fig.suptitle("Predicted Roll, Pitch, Yaw")
+    except Exception as e:
+        print("Orientation plot failed:", e)
 
     # --- 4) (Optional) 3D trajectory plot ---
     try:
@@ -206,8 +223,9 @@ def plotRobotData(
         ax4.set_zlabel("Z (m)")
         ax4.set_title("3D Predicted Trajectory")
         ax4.legend()
-    except:
+    except Exception as e:
         print("No 3D trajectory data available to plot.")
+        print(e)
 
     plt.show()
 

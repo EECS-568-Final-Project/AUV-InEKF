@@ -1,0 +1,3 @@
+[submodule "simulatedData"]
+	path = simulatedData
+	url = git@github.com:EECS-568-Final-Project/simulatedData.git
