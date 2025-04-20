@@ -94,7 +94,7 @@ class IEKF:
 
         try:
             with np.errstate(all="raise"):
-                middle = self.covariance + adjoint @ self.process_noise @ adjoint.T * dt
+                middle = self.covariance + (adjoint @ self.process_noise @ adjoint.T) * dt
                 self.covariance = error_update @ (middle) @ error_update.T
         except FloatingPointError:
             print("Floating Point Error in covariance update")
@@ -121,12 +121,15 @@ class IEKF:
         inverseNoise[-1, -1] = 1 / self.depth_measurement_noise[2, 2]
 
         pred_meas_cov = inv(pred_measurement @ self.covariance @ pred_measurement.T)
-        meas_cov_inv = (
-            pred_meas_cov
-            - pred_meas_cov
-            @ inv(self.rotation.T @ inverseNoise @ self.rotation + pred_meas_cov)
-            @ pred_meas_cov
-        )
+        try:
+            meas_cov_inv = (
+                pred_meas_cov
+                - pred_meas_cov
+                @ inv(self.rotation.T @ inverseNoise @ self.rotation + pred_meas_cov)
+                @ pred_meas_cov
+            )
+        except:
+            breakpoint()
 
         # Kalman gain
         kalman_gain = self.covariance @ pred_measurement.T @ meas_cov_inv
@@ -135,6 +138,7 @@ class IEKF:
 
         self.state = expm(self._wedge(state_gain @ V)) @ self.state
         self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
+        self.bias *= 0.99
 
         self.covariance = (
             np.eye(15) - kalman_gain @ pred_measurement
@@ -173,6 +177,7 @@ class IEKF:
 
         self.state = expm(self._wedge(state_gain @ V)) @ self.state
         self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
+        self.bias *= 0.99
 
         self.covariance = (
             np.eye(15) - kalman_gain @ pred_measurement
@@ -231,6 +236,7 @@ class IEKF:
 
         self.state = expm(self._wedge(state_gain @ V)) @ self.state
         self.bias = self.bias + (bias_gain @ V).reshape(2, 3)
+        self.bias *= 0.99
 
         self.covariance = (
             np.eye(15) - kalman_gain @ pred_measurement

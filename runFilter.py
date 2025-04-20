@@ -17,7 +17,6 @@ def run_filter(sensor_data_list: list[SensorData], iekf: IEKF, ahrs: bool = True
     timestamps = [sensor_data_list[0].time]
 
     for sensor_data in tqdm(sensor_data_list[1:]):
-        # breakpoint()
         if sensor_data.imu_dt is not None:
             assert sensor_data.lin_acc is not None
             assert sensor_data.ang_vel is not None
@@ -61,6 +60,7 @@ def main():
     testCase = sys.argv[1] if len(sys.argv) > 1 else "stationary"
     sensor_data = readData.process_sensor_data(testCase)
 
+
     # Make sure at least 1 CSV was found
     for x in sensor_data:
         if x:
@@ -80,20 +80,20 @@ def main():
     
     ################################ AHRS  #############################
     I_pose = np.eye(5)
-    covariance = np.eye(15)
+    covariance = np.eye(15) * 10
 
     process_noise = np.zeros((15, 15))
-    process_noise[0:3, 0:3] = np.eye(3) * 1  # Rotation noise
-    process_noise[3:6, 3:6] = np.eye(3) * 2  # Velocity noise
-    process_noise[6:9, 6:9] = np.eye(3) * 1  # Position noise
+    process_noise[0:3, 0:3] = np.eye(3) * 5  # Rotation noise
+    process_noise[3:6, 3:6] = np.eye(3) * 5  # Velocity noise
+    process_noise[6:9, 6:9] = np.eye(3) * 5  # Position noise
     process_noise[9:12, 9:12] = np.eye(3) * 0.1  # Bias noise
     process_noise[12:15, 12:15] = np.eye(3) * 1  # Bias noise
 
     depth_measurement_noise = np.zeros((3, 3))
-    depth_measurement_noise[2, 2] = 0.05  # Depth measurement noise
+    depth_measurement_noise[2, 2] = 0.1  # Depth measurement noise
 
-    dvl_measurement_noise = np.eye(3) * 0.02
-    ahrs_measurement_noise = np.eye(3) * 0.02
+    dvl_measurement_noise = np.eye(3) * 0.05
+    ahrs_measurement_noise = np.eye(3) * 0.05
 
     measurement_noise: SensorNoise = {
         "depth": depth_measurement_noise,
