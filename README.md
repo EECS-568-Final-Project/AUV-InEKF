@@ -5,6 +5,12 @@
 ### Authors:
 Brandon Chao, Arnav Mummineni, Uygur Tepe
 
+## Project Links
+- [Presentation](https://docs.google.com/presentation/d/1NNAO6MbM_hFGEJAGUN9Gh9jjmtLyGP5KdW3aVJFrTwY/edit?usp=sharing)
+- [Poster](https://docs.google.com/presentation/d/1hqiXGAFdEgmC7Jd4VIRxZhGYROk3lQNWJUzdXORtVcc/edit?usp=sharing)
+- [Youtube Video Presentation]()
+- [Report PDF](EECS_568_Paper.pdf)
+
 ## Environment Setup (Using `uv`)
 
 This project uses [`uv`](https://github.com/astral-sh/uv) for fast, reproducible Python environment management. The environment is defined by:
@@ -55,6 +61,7 @@ python runFilter.py [dataset]
 
 ### Examples:
 ```bash
+python runFilter.py night2
 python runFilter.py fast
 python runFilter.py forward
 python runFilter.py
