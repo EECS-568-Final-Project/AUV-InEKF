@@ -8,7 +8,7 @@ Brandon Chao, Arnav Mummineni, Uygur Tepe
 ## Project Links
 - [Presentation](https://docs.google.com/presentation/d/1NNAO6MbM_hFGEJAGUN9Gh9jjmtLyGP5KdW3aVJFrTwY/edit?usp=sharing)
 - [Poster](https://docs.google.com/presentation/d/1hqiXGAFdEgmC7Jd4VIRxZhGYROk3lQNWJUzdXORtVcc/edit?usp=sharing)
-- [Youtube Video Presentation]()
+- [Youtube Video Presentation](https://youtu.be/6RysDLbGtNM)
 - [Report PDF](EECS_568_Paper.pdf)
 
 ## Environment Setup (Using `uv`)
